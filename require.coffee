@@ -14,7 +14,7 @@ do ($ = jQuery, window, document) ->
 
 		if 'css' == ext
 			base = uri.replace /[^\/]*$/, ''
-			data = data.replace /url\(('|"|)(?!\/|(https?:)?\/\/)(.+?)\1\)/g, base + '$2'
+			data = data.replace /url\(('|"|)(?!\/|(https?:)?\/\/)(.+?)\1\)/g, "url(#{base}$3)"
 			$head.append $('<style/>').html(data)
 
 		if 'js' == ext

@@ -2,7 +2,7 @@
  * Require v1.4
  *
  * @author ykiwng
-*/
+ */
 
 (function($, window, document) {
   var $head, MILLISEC_DAY, cache, existObject, inject, loader, require;
@@ -14,7 +14,7 @@
     ext = (_ref = /(\w+)([\?#].+)?$/.exec(uri)) != null ? (_ref1 = _ref[1]) != null ? _ref1.toLowerCase() : void 0 : void 0;
     if ('css' === ext) {
       base = uri.replace(/[^\/]*$/, '');
-      data = data.replace(/url\(('|"|)(?!\/|(https?:)?\/\/)(.+?)\1\)/g, base + '$2');
+      data = data.replace(/url\(('|"|)(?!\/|(https?:)?\/\/)(.+?)\1\)/g, "url(" + base + "$3)");
       $head.append($('<style/>').html(data));
     }
     if ('js' === ext) {
