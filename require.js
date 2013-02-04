@@ -1,8 +1,8 @@
 /*!
- * Require v1.4
+ * Require v1.4.2
  *
  * @author ykiwng
- */
+*/
 
 (function($, window, document) {
   var $head, MILLISEC_DAY, cache, existObject, inject, loader, require;
@@ -56,7 +56,7 @@
       }
       return data;
     },
-    remove: function() {
+    clear: function() {
       var key;
       for (key in localStorage) {
         if (key.indexOf(this.prefix) === 0) {
@@ -112,7 +112,7 @@
       }
       return cue.promise();
     },
-    _load: function(dfd, pkg, files) {
+    _load: function(dfd, pkg, files, silent) {
       var cues, init, path;
       init = $.noop;
       cues = (function() {
@@ -138,12 +138,12 @@
           arg = arguments[_i];
           inject(arg);
         }
-        init();
+        init(silent);
         return dfd.resolve();
       }, dfd.reject);
     },
     load: function(assets) {
-      var dfd, files, path, pkg, promises;
+      var dfd, files, path, pkg, promises, silent;
       promises = (function() {
         var _i, _len, _results;
         _results = [];
@@ -154,11 +154,15 @@
           } else if (this.getStatus(pkg)) {
             _results.push(this.getStatus(pkg));
           } else {
+            if ('string' === typeof pkg && '&' === pkg.charAt(0)) {
+              silent = true;
+              pkg = pkg.substr(1);
+            }
             files = this.assets[pkg];
             dfd = $.Deferred();
             switch (true) {
               case !!files:
-                this._load(dfd, pkg, files);
+                this._load(dfd, pkg, files, !!silent);
                 break;
               case !!pkg.match(/^[\.\w\$]+$/):
                 path = this.path + pkg.replace(/([^\.])\.([^\.])/g, '$1/$2').replace(/\.\./g, '.') + '.js';
@@ -215,8 +219,8 @@
     cache: function(bool) {
       return cache.docache = !!bool;
     },
-    removeCache: function() {
-      return cache.remove();
+    clearCache: function() {
+      return cache.clear();
     },
     ready: $(document).ready,
     load: $(window).load

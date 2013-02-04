@@ -1,5 +1,5 @@
 ###!
- * Require v1.4
+ * Require v1.4.2
  *
  * @author ykiwng
 ###
@@ -51,7 +51,7 @@ do ($ = jQuery, window, document) ->
 
 			data
 
-		remove: ->
+		clear: ->
 			for key of localStorage
 				localStorage.removeItem key if key.indexOf(@prefix) == 0
 
@@ -88,7 +88,7 @@ do ($ = jQuery, window, document) ->
 
 			cue.promise()
 
-		_load: (dfd, pkg, files) ->
+		_load: (dfd, pkg, files, silent) ->
 			init = $.noop
 
 			cues = for path in files
@@ -104,7 +104,7 @@ do ($ = jQuery, window, document) ->
 			$.when(cues...)
 			.then ->
 				inject arg for arg in arguments
-				init()
+				init(silent)
 				dfd.resolve()
 			, dfd.reject
 
@@ -115,13 +115,17 @@ do ($ = jQuery, window, document) ->
 				else if @getStatus pkg
 					@getStatus pkg
 				else
+					if 'string' == typeof pkg && '&' == pkg.charAt 0
+						silent = true
+						pkg = pkg.substr 1
+
 					files = @assets[pkg]
 					dfd = $.Deferred()
 
 					switch true
 						# package
 						when !!files
-							@_load dfd, pkg, files
+							@_load dfd, pkg, files, !!silent
 						# dot notation
 						when !!pkg.match /^[\.\w\$]+$/
 							path = @path + pkg.replace(/([^\.])\.([^\.])/g, '$1/$2').replace(/\.\./g, '.') + '.js'
@@ -169,7 +173,7 @@ do ($ = jQuery, window, document) ->
 		path: (path) -> loader.path + (path ? '')
 
 		cache: (bool) -> cache.docache = !!bool
-		removeCache: -> cache.remove()
+		clearCache: -> cache.clear()
 
 		ready: $(document).ready
 		load: $(window).load
