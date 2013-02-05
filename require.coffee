@@ -1,5 +1,5 @@
 ###!
- * Require v1.4.2
+ * Require v1.4.3
  *
  * @author ykiwng
 ###
@@ -15,7 +15,7 @@ do ($ = jQuery, window, document) ->
 		if 'css' == ext
 			base = uri.replace /[^\/]*$/, ''
 			data = data.replace /url\(('|"|)(?!\/|(https?:)?\/\/)(.+?)\1\)/g, "url(#{base}$3)"
-			$head.append $('<style/>').html(data)
+			$head.append "<style>#{data}</style>"
 
 		if 'js' == ext
 			$.globalEval data
