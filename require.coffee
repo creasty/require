@@ -1,5 +1,5 @@
 ###!
- * Require v1.4.3
+ * Require v1.4.4
  *
  * @author ykiwng
 ###
@@ -39,7 +39,9 @@ do ($ = jQuery, window, document) ->
 			return unless @docache and window.localStorage
 
 			timestamp = +new Date()
-			localStorage.setItem @prefix + uri, timestamp + data
+
+			try
+				localStorage.setItem @prefix + uri, timestamp + data
 
 		get: (uri) ->
 			return unless @docache and window.localStorage and data = localStorage.getItem @prefix + uri
