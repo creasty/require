@@ -1,5 +1,5 @@
 /*!
- * Require v1.4.3
+ * Require v1.4.4
  *
  * @author ykiwng
 */
@@ -42,7 +42,9 @@
         return;
       }
       timestamp = +new Date();
-      return localStorage.setItem(this.prefix + uri, timestamp + data);
+      try {
+        return localStorage.setItem(this.prefix + uri, timestamp + data);
+      } catch (_error) {}
     },
     get: function(uri) {
       var data, timestamp;
