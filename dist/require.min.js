@@ -1,5 +1,5 @@
 /*!
- * require - v2.0.0 (2013-03-31)
+ * require - v2.0.0 (2013-04-03)
  *
  * @author creasty
  * @url http://github.com/creasty/require
