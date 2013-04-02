@@ -48,80 +48,30 @@ require は読み込みは並列で行い、**実行のタイミングだけを�
 
 ### 例
 
-#### 依存関係
-
-<table>
-	<tr>
-		<th>モジュール</th>
-		<th>依存</th>
-		<th>読み込み順序</th>
-	</tr>
-	<tr>
-		<td>a</td>
-		<td>なし</td>
-		<td>a</td>
-	</tr>
-	<tr>
-		<td>b</td>
-		<td>a</td>
-		<td>a -> b</td>
-	</tr>
-	<tr>
-		<td>c</td>
-		<td>b</td>
-		<td>a -> b -> c</td>
-	</tr>
-	<tr>
-		<td>x</td>
-		<td>c</td>
-		<td>a -> b -> c -> x</td>
-	</tr>
-	<tr>
-		<td>y</td>
-		<td>c</td>
-		<td>a -> b -> c -> y</td>
-	</tr>
-	<tr>
-		<td>z</td>
-		<td>y</td>
-		<td>a -> b -> c -> y -> z</td>
-	</tr>
-</table>
-
-
-#### ディレクトリ構造
-
-	|-- a.js
-	|-- b.js
-	|-- c.js
-	`-- abc/
-	    |-- x.js
-	    |-- y.js
-	    `-- y/
-	        `-- z.js
-
-#### コンフィグ
-
 ```js
-define('abc', ['a', 'b', 'c'], {});
-```
+require.config({
+  modules: {
+    'abc': {
+      modules: ['a', 'b', 'c']
+    }
+  }
+})
 
-#### 呼び出し
+// ------
 
-```js
 require(['abc/x'], function (x) {
   // a.js
   // b.js
   // c.js
-  // x.js
+  // abc/x.js
   // の順で読み込み完了
 });
 require(['abc/y/z'], function (z) {
 	// a.js
 	// b.js
 	// c.js
-	// y.js
-	// z.js
+	// abc/y.js
+	// abc/y/z.js
 	// の順で読み込み完了
 });
 ```
