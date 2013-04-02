@@ -46,9 +46,9 @@ require は読み込みは並列で行い、**実行のタイミングだけを�
 これは、AMD に対応していないモジュールが大量にあるときに役立ちます。
 
 
-## 例
+### 例
 
-### 依存関係
+#### 依存関係
 
 <table>
 	<tr>
@@ -89,7 +89,7 @@ require は読み込みは並列で行い、**実行のタイミングだけを�
 </table>
 
 
-### ディレクトリ構造
+#### ディレクトリ構造
 
 	|-- a.js
 	|-- b.js
@@ -100,13 +100,13 @@ require は読み込みは並列で行い、**実行のタイミングだけを�
 	    `-- y/
 	        `-- z.js
 
-### コンフィグ
+#### コンフィグ
 
 ```js
 define('abc', ['a', 'b', 'c'], {});
 ```
 
-### 呼び出し
+#### 呼び出し
 
 ```js
 require(['abc/x'], function (x) {
@@ -189,53 +189,6 @@ require.config({
 });
 ```
 
-## foo.js -- AMD
-
-```js
-define(['bar'], function (bar) {
-  // ./lib/module/bar.js に依存したモジュールの定義
-
-  return {
-    bar: bar.toString() // bar が使える
-  };
-});
-```
-
-## bar.js -- AMD
-
-```js
-define({
-	toString: function () {
-		return 'this is bar'
-	}
-})
-```
-
-## app.js
-
-```js
-app = {
-  version: '1.0'
-};
-```
-
-## sub.js
-
-```js
-app.sub = function () {
-  alert('Hi, there!');
-};
-```
-
-## cart.js
-
-```js
-app.cart = {
-  add: function (item) {
-    console.log('added', item);
-  }
-};
-```
 
 ## モジュール呼び出し
 
@@ -270,5 +223,55 @@ require(['app/cart'], function (cart) {
 
   cart.add('an apple');
 });
+```
+
+## 各ファイル(モジュール)の中身
+
+### foo.js (AMD 対応)
+
+```js
+define(['bar'], function (bar) {
+  // ./lib/module/bar.js に依存したモジュールの定義
+
+  return {
+    bar: bar.toString() // bar が使える
+  };
+});
+```
+
+### bar.js (AMD 対応)
+
+```js
+define({
+	toString: function () {
+		return 'this is bar'
+	}
+});
+```
+
+### app.js (AMD 非対応)
+
+```js
+app = {
+  version: '1.0'
+};
+```
+
+### sub.js (AMD 非対応)
+
+```js
+app.sub = function () {
+  alert('Hi, there!');
+};
+```
+
+### cart.js (AMD 非対応)
+
+```js
+app.cart = {
+  add: function (item) {
+    console.log('added', item);
+  }
+};
 ```
 
