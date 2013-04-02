@@ -76,19 +76,28 @@ require(['abc/y/z'], function (z) {
 });
 ```
 
+## 3. スマート Exports
 
-## 3. キャッシュ機能
+`exports` が特に指定されていない場合、モジュール名を名前空間のようにみなしたオブジェクトが exports されます。
+例えば、モジュール `foo/bar` は、自動的に `window.foo.bar` を exports します。
+
+
+## 4. キャッシュ機能
 
 require は標準で localStorage にキャッシュする機能を持っています。
 
 ```js
+// キャッシュ機能をオン (デフォルトではオフ)
 require.config({
   cache: true
 });
+
+// すべてのキャッシュを消去
+require.cache.clear();
 ```
 
 
-## 4. CSS の読み込み対応
+## 5. CSS の読み込み対応
 
 標準で対応しています。
 CSS ファイルないの相対パスも読み込みディレクトリに合わせて最適化されます。
