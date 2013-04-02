@@ -1,0 +1,24 @@
+{
+  "name": "require",
+  "description": "",
+  "version": "2.0.0",
+  "type": "git",
+  "license": "MIT",
+  "author": "creasty",
+  "homepage": "http://github.com/creasty/require",
+  "main": "Gruntfile.coffee",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/creasty/require.git"
+  },
+  "devDependencies": {
+    "grunt": "0.4.x",
+    "grunt-contrib-coffee": "0.4.x",
+    "grunt-contrib-concat": "0.1.x",
+    "grunt-contrib-jasmine": "*",
+    "grunt-contrib-uglify": "0.1.1rc6",
+    "grunt-contrib-watch": "0.2.x",
+    "hooker": "*",
+    "matchdep": "~0.1.1"
+  }
+}
