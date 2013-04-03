@@ -2,27 +2,24 @@
 #=== Config
 #==============================================================================================
 require.config
-  base: './spec/library/modules'
+  baseUrl: './spec/library/modules'
   paths:
-    app: '../app'
+    'app': '../app'
   cache: false
   debug: true
-  modules:
-    'abc':
-      modules: ['.', 'def', 'ghi']
+  shim:
+    'abc': ['.', 'def', 'ghi']
 
     'xyz':
-      modules: ['.']
+      deps: ['.']
       exports: (xyz) -> xyz.toString
 
-    'app':
-      modules: ['.', './app.css']
+    'app': ['.', './app.css']
 
-    'app/foo':
-      modules: ['.', './foo.css']
+    'app/foo': ['.', './foo.css']
 
     'app/bar':
-      modules: ['.']
+      deps: ['.']
       init: (appBar) ->
         return if @called
         appBar.init()
@@ -80,7 +77,7 @@ describe 'require.getFullPackages(packages)', ->
       { # pkg
         pkg: 'app'
         silent: false
-        modules: [ # modules
+        deps: [ # deps
           { # module
             name: 'app'
             uri: require.toUri 'app'
@@ -94,7 +91,7 @@ describe 'require.getFullPackages(packages)', ->
       {
         pkg: 'app/foo'
         silent: false
-        modules: [
+        deps: [
           {
             name: 'app/foo'
             uri: require.toUri 'app/foo'
@@ -108,7 +105,7 @@ describe 'require.getFullPackages(packages)', ->
       {
         pkg: 'xyz'
         silent: true
-        modules: [
+        deps: [
           {
             name: 'xyz'
             uri: require.toUri 'xyz'
@@ -117,7 +114,7 @@ describe 'require.getFullPackages(packages)', ->
       }
       {
         pkg: 'aaa'
-        modules: [
+        deps: [
           {
             name: 'aaa'
             uri: require.toUri 'aaa'
@@ -126,7 +123,7 @@ describe 'require.getFullPackages(packages)', ->
       }
       {
         pkg: 'aaa/bbb'
-        modules: [
+        deps: [
           {
             name: 'aaa/bbb'
             uri: require.toUri 'aaa/bbb'

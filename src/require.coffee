@@ -15,9 +15,9 @@ MILLISEC_DAY = 86400000 # 1000 msec * 60 sec * 60 min * 24 hr = 1 d
 
 config =
   prefix:     'require-'
-  base:       './'
+  baseUrl:    './'
   paths:      {}
-  modules:    {}
+  shim:       {}
   injectors:  {}
   alts:       []
   maps:       []
@@ -74,10 +74,10 @@ utils =
   getPackageType: (pkg) ->
     if pkg.indexOf('!') > 0
       'plugin'
-    else if pkg.match(/^(\.\/|)/) && !config.injectors[/\w+$/.exec(pkg)?[0]]
-      'package'
-    else
+    else if pkg.match(/^(|\.\.|\~|https?:)\//) || config.injectors[/\w+$/.exec(pkg)?[0]]
       'path'
+    else
+      'package'
 
   fixBase: (name, base) ->
     if '.' == name
@@ -106,12 +106,12 @@ utils =
       when 'path'
         @doMaps(pkg).replace /^\~\/((\w*)\/)?/, (_0, _1, _2) =>
           p = config.paths[_2]
-          config.base + '/' + (if p then p + '/' else _1 ? '')
+          config.baseUrl + '/' + (if p then p + '/' else _1 ? '')
       when 'package'
         pkg = @doMaps(pkg).replace /^\w+/, (_0) ->
           config.paths[_0] ? _0
 
-        config.base + '/' + pkg + '.js'
+        config.baseUrl + '/' + pkg + '.js'
       else
         pkg
 
@@ -158,7 +158,7 @@ class FullPackages
 
       continue if @added[ns]
 
-      if config.modules[ns]
+      if config.shim[ns]
         list.push @expand([ns])...
         @checkAdded ns
       else
@@ -167,19 +167,20 @@ class FullPackages
     list
 
   addModulePackage: (list, pkg, silent) ->
-    if def = config.modules[pkg]
+    if def = config.shim[pkg]
       return if @checkAdded pkg
 
-      def = $.extend { pkg, silent, modules: [] }, def
+      def = config.shim[pkg] = deps: def if $.isArray def
+      def = $.extend { pkg, silent, deps: [] }, def
 
-      def.modules =
-        for m in def.modules
+      def.deps =
+        for m in def.deps
           m = utils.doAlts m
           m = utils.fixBase m, pkg
 
           @addDependencies list, m if 'package' == utils.getPackageType m
 
-          if m != pkg && config.modules[m]
+          if m != pkg && config.shim[m]
             list.push @expand([m])...
             continue
           else
@@ -191,11 +192,11 @@ class FullPackages
 
   addSinglePackage: (list, pkg) ->
     return if @checkAdded pkg
-    list.push { pkg, modules: [name: pkg, uri: utils.toUri pkg] }
+    list.push { pkg, deps: [name: pkg, uri: utils.toUri pkg] }
 
   addPluginPackage: (list, pkg) ->
     return if @checkAdded pkg
-    list.push { pkg, modules: [name: pkg, func: pkg] }
+    list.push { pkg, deps: [name: pkg, func: pkg] }
 
   expand: (packages) ->
     list = []
@@ -261,11 +262,11 @@ exports =
 
   unwrap: (set) ->
     if set.pkg
-      def = config.modules[set.pkg] ? set
-      modules = def.modules ? []
+      def = config.shim[set.pkg] ? set
+      deps = def.deps ? []
 
       if $.isFunction set.exports
-        args = for name in modules
+        args = for name in deps
           name = utils.fixBase utils.doAlts(name), set.pkg
           @get (if name == set.pkg then '#' else '') + name
 
@@ -359,7 +360,7 @@ loader =
     # get exports from its module
     # ensure that the module has been loaded
     new Require([func]).then ->
-      if plugin = config.modules[func]?.plugin
+      if plugin = config.shim[func]?.plugin
         plugin dfd, name, (arg ? '')
       else
         dfd.resolve name, 'noplugin'
@@ -370,7 +371,7 @@ loader =
     dfd.promise()
 
   loadPackage: (pkg) ->
-    queues = for { name, uri, func } in pkg.modules
+    queues = for { name, uri, func } in pkg.deps
       if @getStatus name
         @getStatus name, true
       else if func
@@ -413,7 +414,7 @@ loader =
 
       exports.set pkg
 
-      args = for name in config.modules[pkg.pkg]?.modules ? []
+      args = for name in config.shim[pkg.pkg]?.deps ? []
         exports.get utils.fixBase utils.doAlts(name), pkg.pkg
 
       pkg.init? args...
@@ -455,7 +456,7 @@ require = (x, y, z) ->
     new Require arguments
 
 define = (x, y, z, override = false) ->
-  return config.modules unless x?
+  return config.shim unless x?
 
   # swap args
   [y, z] =
@@ -465,17 +466,17 @@ define = (x, y, z, override = false) ->
       [[], y]
 
   # exit if it cannot be overrided
-  return if config.modules[x] && !(override || config.override)
+  return if config.shim[x] && !(override || config.override)
 
   # define new module
   undef x
-  config.modules[x] = modules: y, exports: z
+  config.shim[x] = deps: y, exports: z
 
 undef = (name) ->
   _name = utils.doAlts name
   loader.setStatus _name, null
   exports.remove _name
-  config.modules[name] = undefined
+  config.shim[name] = undefined
 
 $.extend require, utils,
   cache: cache
@@ -494,7 +495,7 @@ $.extend require, utils,
   config: (settings) ->
     if $.isPlainObject settings
       # deep copy
-      settings.modules = $.extend config.modules, settings.modules if settings.modules
+      settings.shim = $.extend config.shim, settings.shim if settings.shim
       settings.alts = $.extend config.alts, settings.alts if settings.alts
       settings.maps = $.extend config.maps, settings.maps if settings.maps
 
@@ -548,8 +549,6 @@ fired = {}
 $(document).ready -> fired.ready = true
 $(window).load -> fired.load = true
 
-define 'jquery', -> $
-
 define 'ready', ->
   ready = (fn) ->
     if fired.ready
@@ -575,6 +574,8 @@ define 'load', ->
       dfd.resolve { pkg, exports: window }
 
   load
+
+define 'jquery', -> $
 
 require.injectors
   css: (data, uri) ->

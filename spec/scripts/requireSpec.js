@@ -1,30 +1,24 @@
 (function() {
 
   require.config({
-    base: './spec/library/modules',
+    baseUrl: './spec/library/modules',
     paths: {
-      app: '../app'
+      'app': '../app'
     },
     cache: false,
     debug: true,
-    modules: {
-      'abc': {
-        modules: ['.', 'def', 'ghi']
-      },
+    shim: {
+      'abc': ['.', 'def', 'ghi'],
       'xyz': {
-        modules: ['.'],
+        deps: ['.'],
         exports: function(xyz) {
           return xyz.toString;
         }
       },
-      'app': {
-        modules: ['.', './app.css']
-      },
-      'app/foo': {
-        modules: ['.', './foo.css']
-      },
+      'app': ['.', './app.css'],
+      'app/foo': ['.', './foo.css'],
       'app/bar': {
-        modules: ['.'],
+        deps: ['.'],
         init: function(appBar) {
           if (this.called) {
             return;
@@ -80,7 +74,7 @@
         {
           pkg: 'app',
           silent: false,
-          modules: [
+          deps: [
             {
               name: 'app',
               uri: require.toUri('app')
@@ -92,7 +86,7 @@
         }, {
           pkg: 'app/foo',
           silent: false,
-          modules: [
+          deps: [
             {
               name: 'app/foo',
               uri: require.toUri('app/foo')
@@ -104,7 +98,7 @@
         }, {
           pkg: 'xyz',
           silent: true,
-          modules: [
+          deps: [
             {
               name: 'xyz',
               uri: require.toUri('xyz')
@@ -112,7 +106,7 @@
           ]
         }, {
           pkg: 'aaa',
-          modules: [
+          deps: [
             {
               name: 'aaa',
               uri: require.toUri('aaa')
@@ -120,7 +114,7 @@
           ]
         }, {
           pkg: 'aaa/bbb',
-          modules: [
+          deps: [
             {
               name: 'aaa/bbb',
               uri: require.toUri('aaa/bbb')

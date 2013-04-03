@@ -50,10 +50,8 @@ require は読み込みは並列で行い、**実行のタイミングだけを�
 
 ```js
 require.config({
-  modules: {
-    'abc': {
-      modules: ['a', 'b', 'c']
-    }
+  shim: {
+    'abc': ['a', 'b', 'c']
   }
 })
 
@@ -67,12 +65,12 @@ require(['abc/x'], function (x) {
   // の順で読み込み完了
 });
 require(['abc/y/z'], function (z) {
-	// a.js
-	// b.js
-	// c.js
-	// abc/y.js
-	// abc/y/z.js
-	// の順で読み込み完了
+  // a.js
+  // b.js
+  // c.js
+  // abc/y.js
+  // abc/y/z.js
+  // の順で読み込み完了
 });
 ```
 
@@ -131,23 +129,22 @@ API の詳しい説明は今度ちゃんと wiki 作ります。
 ## index.html
 
 ```html
-<script src="./vendors/jquery.js"></script>
-<script src="./vendors/require.js" data-main="./lib/main.js"></script>
+<!-- 注意: require は jquery に依存しています！ -->
+<script src="vendors/jquery.js"></script>
+<script src="vendors/require.js" data-main="lib/main.js"></script>
 ```
 
 ## main.js
 
 ```js
 require.config({
-  base: './lib/modules',
+  baseUrl: './lib/modules',
   paths: {
-    app: '../app'
+    'app': '../app'
   }
   cache: true, // localStorage にキャッシュする
-  modules: {
-    'app/cart': {
-      modules: ['./cart', './cart.css'] // .js と .css を読み込む
-    }
+  shim: {
+    'app/cart': ['./cart', './cart.css'] // .js と .css を読み込む
   }
 });
 ```

@@ -1,10 +1,3 @@
-/*!
- * require - v2.0.0 (2013-04-03)
- *
- * @author creasty
- * @url http://github.com/creasty/require
- * @copyright 2013 creasty
- */
 (function() {
   'use strict';
 
@@ -31,9 +24,9 @@
 
   config = {
     prefix: 'require-',
-    base: './',
+    baseUrl: './',
     paths: {},
-    modules: {},
+    shim: {},
     injectors: {},
     alts: [],
     maps: [],
@@ -98,10 +91,10 @@
       var _ref;
       if (pkg.indexOf('!') > 0) {
         return 'plugin';
-      } else if (pkg.match(/^(\.\/|)/) && !config.injectors[(_ref = /\w+$/.exec(pkg)) != null ? _ref[0] : void 0]) {
-        return 'package';
-      } else {
+      } else if (pkg.match(/^(|\.\.|\~|https?:)\//) || config.injectors[(_ref = /\w+$/.exec(pkg)) != null ? _ref[0] : void 0]) {
         return 'path';
+      } else {
+        return 'package';
       }
     },
     fixBase: function(name, base) {
@@ -140,14 +133,14 @@
             return this.doMaps(pkg).replace(/^\~\/((\w*)\/)?/, function(_0, _1, _2) {
               var p;
               p = config.paths[_2];
-              return config.base + '/' + (p ? p + '/' : _1 != null ? _1 : '');
+              return config.baseUrl + '/' + (p ? p + '/' : _1 != null ? _1 : '');
             });
           case 'package':
             pkg = this.doMaps(pkg).replace(/^\w+/, function(_0) {
               var _ref;
               return (_ref = config.paths[_0]) != null ? _ref : _0;
             });
-            return config.base + '/' + pkg + '.js';
+            return config.baseUrl + '/' + pkg + '.js';
           default:
             return pkg;
         }
@@ -210,7 +203,7 @@
         if (this.added[ns]) {
           continue;
         }
-        if (config.modules[ns]) {
+        if (config.shim[ns]) {
           list.push.apply(list, this.expand([ns]));
           this.checkAdded(ns);
         } else {
@@ -222,18 +215,23 @@
 
     FullPackages.prototype.addModulePackage = function(list, pkg, silent) {
       var def, m;
-      if (def = config.modules[pkg]) {
+      if (def = config.shim[pkg]) {
         if (this.checkAdded(pkg)) {
           return;
+        }
+        if ($.isArray(def)) {
+          def = config.shim[pkg] = {
+            deps: def
+          };
         }
         def = $.extend({
           pkg: pkg,
           silent: silent,
-          modules: []
+          deps: []
         }, def);
-        def.modules = (function() {
+        def.deps = (function() {
           var _i, _len, _ref, _results;
-          _ref = def.modules;
+          _ref = def.deps;
           _results = [];
           for (_i = 0, _len = _ref.length; _i < _len; _i++) {
             m = _ref[_i];
@@ -242,7 +240,7 @@
             if ('package' === utils.getPackageType(m)) {
               this.addDependencies(list, m);
             }
-            if (m !== pkg && config.modules[m]) {
+            if (m !== pkg && config.shim[m]) {
               list.push.apply(list, this.expand([m]));
               continue;
             } else {
@@ -266,7 +264,7 @@
       }
       return list.push({
         pkg: pkg,
-        modules: [
+        deps: [
           {
             name: pkg,
             uri: utils.toUri(pkg)
@@ -281,7 +279,7 @@
       }
       return list.push({
         pkg: pkg,
-        modules: [
+        deps: [
           {
             name: pkg,
             func: pkg
@@ -369,16 +367,16 @@
   exports = {
     exports: {},
     unwrap: function(set) {
-      var args, def, modules, name, _ref, _ref1;
+      var args, def, deps, name, _ref, _ref1;
       if (set.pkg) {
-        def = (_ref = config.modules[set.pkg]) != null ? _ref : set;
-        modules = (_ref1 = def.modules) != null ? _ref1 : [];
+        def = (_ref = config.shim[set.pkg]) != null ? _ref : set;
+        deps = (_ref1 = def.deps) != null ? _ref1 : [];
         if ($.isFunction(set.exports)) {
           args = (function() {
             var _i, _len, _results;
             _results = [];
-            for (_i = 0, _len = modules.length; _i < _len; _i++) {
-              name = modules[_i];
+            for (_i = 0, _len = deps.length; _i < _len; _i++) {
+              name = deps[_i];
               name = utils.fixBase(utils.doAlts(name), set.pkg);
               _results.push(this.get((name === set.pkg ? '#' : '') + name));
             }
@@ -502,7 +500,7 @@
       _ref = pkg.split('!'), func = _ref[0], arg = _ref[1];
       new Require([func]).then(function() {
         var plugin, _ref1;
-        if (plugin = (_ref1 = config.modules[func]) != null ? _ref1.plugin : void 0) {
+        if (plugin = (_ref1 = config.shim[func]) != null ? _ref1.plugin : void 0) {
           return plugin(dfd, name, arg != null ? arg : '');
         } else {
           return dfd.resolve(name, 'noplugin');
@@ -519,7 +517,7 @@
       var func, name, queues, uri;
       queues = (function() {
         var _i, _len, _ref, _ref1, _results;
-        _ref = pkg.modules;
+        _ref = pkg.deps;
         _results = [];
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           _ref1 = _ref[_i], name = _ref1.name, uri = _ref1.uri, func = _ref1.func;
@@ -582,7 +580,7 @@
         exports.set(pkg);
         args = (function() {
           var _j, _len1, _ref, _ref1, _ref2, _results;
-          _ref2 = (_ref = (_ref1 = config.modules[pkg.pkg]) != null ? _ref1.modules : void 0) != null ? _ref : [];
+          _ref2 = (_ref = (_ref1 = config.shim[pkg.pkg]) != null ? _ref1.deps : void 0) != null ? _ref : [];
           _results = [];
           for (_j = 0, _len1 = _ref2.length; _j < _len1; _j++) {
             name = _ref2[_j];
@@ -682,15 +680,15 @@
       override = false;
     }
     if (x == null) {
-      return config.modules;
+      return config.shim;
     }
     _ref = $.isArray(y) && (z != null) ? [y, z] : y != null ? [[], y] : void 0, y = _ref[0], z = _ref[1];
-    if (config.modules[x] && !(override || config.override)) {
+    if (config.shim[x] && !(override || config.override)) {
       return;
     }
     undef(x);
-    return config.modules[x] = {
-      modules: y,
+    return config.shim[x] = {
+      deps: y,
       exports: z
     };
   };
@@ -700,7 +698,7 @@
     _name = utils.doAlts(name);
     loader.setStatus(_name, null);
     exports.remove(_name);
-    return config.modules[name] = void 0;
+    return config.shim[name] = void 0;
   };
 
   $.extend(require, utils, {
@@ -724,8 +722,8 @@
     },
     config: function(settings) {
       if ($.isPlainObject(settings)) {
-        if (settings.modules) {
-          settings.modules = $.extend(config.modules, settings.modules);
+        if (settings.shim) {
+          settings.shim = $.extend(config.shim, settings.shim);
         }
         if (settings.alts) {
           settings.alts = $.extend(config.alts, settings.alts);
@@ -793,10 +791,6 @@
     return fired.load = true;
   });
 
-  define('jquery', function() {
-    return $;
-  });
-
   define('ready', function() {
     var ready;
     ready = function(fn) {
@@ -835,6 +829,10 @@
       });
     };
     return load;
+  });
+
+  define('jquery', function() {
+    return $;
   });
 
   require.injectors({
