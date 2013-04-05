@@ -1,13 +1,25 @@
 (function() {
 
   require.config({
+    cache: false,
+    debug: true,
     baseUrl: './spec/library/modules',
     paths: {
       'app': '../app'
     },
-    cache: false,
-    debug: true,
+    map: {
+      '*': {
+        'map-test': 'map-test-1'
+      },
+      'com': {
+        'map-test': 'map-test-2'
+      }
+    },
     shim: {
+      'com': {
+        deps: ['../com.js'],
+        fallbacks: ['~/com.js']
+      },
       'abc': ['.', 'def', 'ghi'],
       'xyz': {
         deps: ['.'],
@@ -30,39 +42,41 @@
     }
   });
 
-  describe('require.toUri(pkg)', function() {
+  describe('require.toUrl(pkg)', function() {
     var config;
     config = require.config();
-    it('`pkg` が "/", "../" ではじまるとき、相対パスとみなしてそのままの値を返す', function() {
-      var x1, x2;
+    it('`pkg` が "~/" ではじまるとき、base からの URL を返す', function() {
+      var x1, x2, y1, y2;
+      x1 = require.toUrl('~/dir/file.js');
+      y1 = 'spec/library/modules/dir/file.js';
+      x2 = require.toUrl('~/app/dir/file.js');
+      y2 = 'spec/library/app/dir/file.js';
+      expect(x1).toEqual(y1);
+      return expect(x2).toEqual(y2);
+    });
+    it('`pkg` が、"/", "../", "http[s]://" で始まるか、拡張子を含むとき、一般的なパスとみなしてそのままの値を返す', function() {
+      var x1, x2, x3;
       x1 = '/dir/file.js';
       x2 = '../dir/file.js';
-      expect(require.toUri(x1)).toEqual(x1);
-      return expect(require.toUri(x2)).toEqual(x2);
+      x3 = 'http://www.example.com/dir/file.js';
+      expect(require.toUrl(x1)).toEqual(x1);
+      expect(require.toUrl(x2)).toEqual(x2);
+      return expect(require.toUrl(x3)).toEqual(x3);
     });
-    it('`pkg` が "./" で始まる場合は、これ以降を返す', function() {
+    it('`pkg` が、パッケージとみなして base からの URL を返す', function() {
       var x, y;
-      x = './dir/file.js';
-      y = 'dir/file.js';
-      return expect(require.toUri(x)).toEqual(y);
-    });
-    it('`pkg` が "~/" ではじまるとき、base からの URL を返す', function() {
-      var x, y;
-      x = require.toUri('~/dir/file.js');
-      y = 'spec/library/modules/dir/file.js';
-      return expect(x).toEqual(y);
-    });
-    it('`pkg` が "~/path" ではじまるとき、base + paths からの URL を返す', function() {
-      var x, y;
-      x = require.toUri('~/app/dir/file.js');
-      y = 'spec/library/app/dir/file.js';
-      return expect(x).toEqual(y);
-    });
-    return it('`pkg` が上のいずれにも当てはまらず拡張子を含まないとき、パッケージとみなして base + paths からの URL を返す', function() {
-      var x, y;
-      x = require.toUri('foo/bar/baz');
+      x = require.toUrl('foo/bar/baz');
       y = 'spec/library/modules/foo/bar/baz.js';
       return expect(x).toEqual(y);
+    });
+    return it('map が正しく機能する', function() {
+      var x1, x2, y1, y2;
+      x1 = require.toUrl('map-test');
+      y1 = require.toUrl('map-test-1');
+      x2 = require.toUrl('map-test', 'com');
+      y2 = require.toUrl('map-test-2');
+      expect(x1).toEqual(y1);
+      return expect(x2).toEqual(y2);
     });
   });
 
@@ -77,39 +91,42 @@
           deps: [
             {
               name: 'app',
-              uri: require.toUri('app')
+              uri: require.toUrl('app')
             }, {
               name: require.fixBase('./app.css', 'app'),
-              uri: require.toUri('~/app/app.css')
+              uri: require.toUrl('~/app/app.css')
             }
-          ]
+          ],
+          fallbacks: []
         }, {
           pkg: 'app/foo',
           silent: false,
           deps: [
             {
               name: 'app/foo',
-              uri: require.toUri('app/foo')
+              uri: require.toUrl('app/foo')
             }, {
               name: require.fixBase('./foo.css', 'app/foo'),
-              uri: require.toUri('~/app/foo/foo.css')
+              uri: require.toUrl('~/app/foo/foo.css')
             }
-          ]
+          ],
+          fallbacks: []
         }, {
           pkg: 'xyz',
           silent: true,
           deps: [
             {
               name: 'xyz',
-              uri: require.toUri('xyz')
+              uri: require.toUrl('xyz')
             }
-          ]
+          ],
+          fallbacks: []
         }, {
           pkg: 'aaa',
           deps: [
             {
               name: 'aaa',
-              uri: require.toUri('aaa')
+              uri: require.toUrl('aaa')
             }
           ]
         }, {
@@ -117,7 +134,7 @@
           deps: [
             {
               name: 'aaa/bbb',
-              uri: require.toUri('aaa/bbb')
+              uri: require.toUrl('aaa/bbb')
             }
           ]
         }
@@ -138,13 +155,13 @@
           return expect(ghi.order).toEqual(2);
         });
       });
-      it('各モジュールは .done 関数の中で `this.get(name)` を使って取得するか、引数で受け取る', function() {
+      it('各モジュールは .done 関数の中で `this.require(name)` を使って取得するか、引数で受け取る', function() {
         var x,
           _this = this;
         x = {};
         require('xyz').always(this.stop).done(this.done).done(function(arg) {
           x.arg = arg;
-          return x.get = this.get(0);
+          return x.get = this.require(0);
         });
         return this.async(function() {
           expect(_this.done).toHaveBeenCalled();
@@ -176,6 +193,16 @@
         return this.async(function() {
           expect(_this.done).toHaveBeenCalled();
           return expect(_this.json.file).toEqual('sample.json');
+        });
+      });
+      it('`deps` の URL で読み込みエラーが起きた場合、`fallbacks` の方にある URL で再トライする', function() {
+        var _this = this;
+        require('com').always(this.stop).done(this.done).done(function(com) {
+          _this.com = com;
+        });
+        return this.async(function() {
+          expect(_this.done).toHaveBeenCalled();
+          return expect(_this.com()).toEqual('com');
         });
       });
       return it('ファイル内で定義したモジュールを利用する', function() {

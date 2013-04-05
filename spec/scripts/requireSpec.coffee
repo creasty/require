@@ -2,12 +2,24 @@
 #=== Config
 #==============================================================================================
 require.config
+  cache: false
+  debug: true
   baseUrl: './spec/library/modules'
   paths:
     'app': '../app'
-  cache: false
-  debug: true
+
+  map:
+    '*':
+      'map-test': 'map-test-1'
+
+    'com':
+      'map-test': 'map-test-2'
+
   shim:
+    'com':
+      deps: ['../com.js']
+      fallbacks: ['~/com.js']
+
     'abc': ['.', 'def', 'ghi']
 
     'xyz':
@@ -25,45 +37,45 @@ require.config
         appBar.init()
         @called = true
 
-# /\bjquery(?!\/)\b/ -- only for file
-# /\bjquery\// -- only for folder
-
 
 #=== Utils
 #==============================================================================================
-describe 'require.toUri(pkg)', ->
+describe 'require.toUrl(pkg)', ->
   config = require.config()
 
-  it '`pkg` が "/", "../" ではじまるとき、相対パスとみなしてそのままの値を返す', ->
+  it '`pkg` が "~/" ではじまるとき、base からの URL を返す', ->
+    x1 = require.toUrl '~/dir/file.js'
+    y1 = 'spec/library/modules/dir/file.js'
+
+    x2 = require.toUrl '~/app/dir/file.js'
+    y2 = 'spec/library/app/dir/file.js'
+
+    expect(x1).toEqual y1
+    expect(x2).toEqual y2
+
+  it '`pkg` が、"/", "../", "http[s]://" で始まるか、拡張子を含むとき、一般的なパスとみなしてそのままの値を返す', ->
     x1 = '/dir/file.js'
     x2 = '../dir/file.js'
+    x3 = 'http://www.example.com/dir/file.js'
 
-    expect(require.toUri x1).toEqual x1
-    expect(require.toUri x2).toEqual x2
+    expect(require.toUrl x1).toEqual x1
+    expect(require.toUrl x2).toEqual x2
+    expect(require.toUrl x3).toEqual x3
 
-  it '`pkg` が "./" で始まる場合は、これ以降を返す', ->
-    x = './dir/file.js'
-    y = 'dir/file.js'
-
-    expect(require.toUri x).toEqual y
-
-  it '`pkg` が "~/" ではじまるとき、base からの URL を返す', ->
-    x = require.toUri '~/dir/file.js'
-    y = 'spec/library/modules/dir/file.js'
-
-    expect(x).toEqual y
-
-  it '`pkg` が "~/path" ではじまるとき、base + paths からの URL を返す', ->
-    x = require.toUri '~/app/dir/file.js'
-    y = 'spec/library/app/dir/file.js'
-
-    expect(x).toEqual y
-
-  it '`pkg` が上のいずれにも当てはまらず拡張子を含まないとき、パッケージとみなして base + paths からの URL を返す', ->
-    x = require.toUri 'foo/bar/baz'
+  it '`pkg` が、パッケージとみなして base からの URL を返す', ->
+    x = require.toUrl 'foo/bar/baz'
     y = 'spec/library/modules/foo/bar/baz.js'
 
     expect(x).toEqual y
+
+  it 'map が正しく機能する', ->
+    x1 = require.toUrl 'map-test'
+    y1 = require.toUrl 'map-test-1'
+    x2 = require.toUrl 'map-test', 'com'
+    y2 = require.toUrl 'map-test-2'
+
+    expect(x1).toEqual y1
+    expect(x2).toEqual y2
 
 describe 'require.getFullPackages(packages)', ->
   it '依存関係にあるすべてのモジュールを含めた配列を返す', ->
@@ -80,13 +92,14 @@ describe 'require.getFullPackages(packages)', ->
         deps: [ # deps
           { # module
             name: 'app'
-            uri: require.toUri 'app'
+            uri: require.toUrl 'app'
           }
           {
             name: require.fixBase './app.css', 'app'
-            uri: require.toUri '~/app/app.css'
+            uri: require.toUrl '~/app/app.css'
           }
         ]
+        fallbacks: []
       }
       {
         pkg: 'app/foo'
@@ -94,13 +107,14 @@ describe 'require.getFullPackages(packages)', ->
         deps: [
           {
             name: 'app/foo'
-            uri: require.toUri 'app/foo'
+            uri: require.toUrl 'app/foo'
           }
           {
             name: require.fixBase './foo.css', 'app/foo'
-            uri: require.toUri '~/app/foo/foo.css'
+            uri: require.toUrl '~/app/foo/foo.css'
           }
         ]
+        fallbacks: []
       }
       {
         pkg: 'xyz'
@@ -108,16 +122,17 @@ describe 'require.getFullPackages(packages)', ->
         deps: [
           {
             name: 'xyz'
-            uri: require.toUri 'xyz'
+            uri: require.toUrl 'xyz'
           }
         ]
+        fallbacks: []
       }
       {
         pkg: 'aaa'
         deps: [
           {
             name: 'aaa'
-            uri: require.toUri 'aaa'
+            uri: require.toUrl 'aaa'
           }
         ]
       }
@@ -126,7 +141,7 @@ describe 'require.getFullPackages(packages)', ->
         deps: [
           {
             name: 'aaa/bbb'
-            uri: require.toUri 'aaa/bbb'
+            uri: require.toUrl 'aaa/bbb'
           }
         ]
       }
@@ -152,7 +167,7 @@ describe 'require(args...)', ->
         expect(def.order).toEqual 1
         expect(ghi.order).toEqual 2
 
-    it '各モジュールは .done 関数の中で `this.get(name)` を使って取得するか、引数で受け取る', ->
+    it '各モジュールは .done 関数の中で `this.require(name)` を使って取得するか、引数で受け取る', ->
       x = {}
 
       require('xyz')
@@ -160,7 +175,7 @@ describe 'require(args...)', ->
       .done(@done)
       .done (arg) ->
         x.arg = arg
-        x.get = @get 0
+        x.get = @require 0
 
       @async =>
         expect(@done).toHaveBeenCalled()
@@ -194,6 +209,16 @@ describe 'require(args...)', ->
       @async =>
         expect(@done).toHaveBeenCalled()
         expect(@json.file).toEqual 'sample.json'
+
+    it '`deps` の URL で読み込みエラーが起きた場合、`fallbacks` の方にある URL で再トライする', ->
+      require('com')
+      .always(@stop)
+      .done(@done)
+      .done (@com) =>
+
+      @async =>
+        expect(@done).toHaveBeenCalled()
+        expect(@com()).toEqual 'com'
 
     it 'ファイル内で定義したモジュールを利用する', ->
       require('fileModule')

@@ -1,3 +1,10 @@
+/*!
+ * require - v2.0.1 (2013-04-06)
+ *
+ * @author creasty
+ * @url http://github.com/creasty/require
+ * @copyright 2013 creasty
+ */
 (function() {
   'use strict';
 
@@ -24,12 +31,11 @@
 
   config = {
     prefix: 'require-',
-    baseUrl: './',
+    baseUrl: '',
     paths: {},
-    shim: {},
     injectors: {},
-    alts: [],
-    maps: [],
+    shim: {},
+    map: {},
     cache: true,
     debug: false,
     override: false,
@@ -39,43 +45,6 @@
   };
 
   utils = {
-    replace: function(text, pattern, to) {
-      if (typeof pattern === 'string') {
-        return text.split(pattern).join(to);
-      } else {
-        return text.replace(pattern, to);
-      }
-    },
-    doAlts: function(name) {
-      var r, type, _i, _len, _ref;
-      type = this.getPackageType(name);
-      _ref = config.alts;
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        r = _ref[_i];
-        if (!r.type || r.type === type) {
-          name = this.replace(name, r.pattern, r.to);
-        }
-      }
-      return name;
-    },
-    doMaps: function(uri) {
-      var path, r, _i, _len, _ref;
-      if (path = /^(\~([a-z_\$]\w*)\/|[a-z_\$]\w*)/i.exec(uri)) {
-        if (path[2] && config.paths[path[2]]) {
-          path = path[2];
-        } else {
-          path = path[1];
-        }
-        _ref = config.maps;
-        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-          r = _ref[_i];
-          if (!r.path || r.path === path) {
-            uri = this.replace(uri, r.pattern, r.to);
-          }
-        }
-      }
-      return uri;
-    },
     inject: function(uri, data) {
       var _base, _name;
       return typeof (_base = config.injectors)[_name = this.getFileExtension(uri)] === "function" ? _base[_name](data, uri) : void 0;
@@ -83,9 +52,6 @@
     getFileExtension: function(file) {
       var _ref;
       return (_ref = /(\w+)([\?#].+)?$/.exec(file.toLowerCase())) != null ? _ref[1] : void 0;
-    },
-    sanitizeNamespace: function(ns) {
-      return ns.replace(/\//g, '.').replace(/[^\w\.\$]+/g, '_').replace(/\b(\d+)/g, '_$1').replace(/\.+/g, '.').replace(/^\.*(.+?)\.*$/, '$1');
     },
     getPackageType: function(pkg) {
       var _ref;
@@ -97,8 +63,21 @@
         return 'package';
       }
     },
+    getFullPackages: function(packages, base) {
+      return new FullPackages(packages, base).get();
+    },
+    doMap: function(name, base) {
+      var _ref, _ref1, _ref2;
+      if (base == null) {
+        base = '*';
+      }
+      return (_ref = (_ref1 = (_ref2 = config.map[base]) != null ? _ref2 : config.map['*']) != null ? _ref1[name] : void 0) != null ? _ref : name;
+    },
     fixBase: function(name, base) {
       var _ref;
+      if (!base) {
+        return name;
+      }
       if ('.' === name) {
         return base;
       } else if ('./' === name.slice(0, 2)) {
@@ -110,6 +89,9 @@
       } else {
         return name;
       }
+    },
+    regulateName: function(name, base) {
+      return this.fixBase(this.doMap(name, base), base);
     },
     trimDots: function(uri) {
       var part, parts, _i, _len, _ref;
@@ -125,18 +107,18 @@
       }
       return parts.join('/');
     },
-    toUri: function(pkg) {
+    toUrl: function(pkg) {
       pkg = (function() {
         var _this = this;
         switch (this.getPackageType(pkg)) {
           case 'path':
-            return this.doMaps(pkg).replace(/^\~\/((\w*)\/)?/, function(_0, _1, _2) {
+            return pkg.replace(/^\~\/((\w*)\/)?/, function(_0, _1, _2) {
               var p;
               p = config.paths[_2];
               return config.baseUrl + '/' + (p ? p + '/' : _1 != null ? _1 : '');
             });
           case 'package':
-            pkg = this.doMaps(pkg).replace(/^\w+/, function(_0) {
+            pkg = pkg.replace(/^\w+/, function(_0) {
               var _ref;
               return (_ref = config.paths[_0]) != null ? _ref : _0;
             });
@@ -147,8 +129,8 @@
       }).call(this);
       return this.trimDots(pkg);
     },
-    getFullPackages: function(packages) {
-      return new FullPackages(packages).get();
+    sanitizeNamespace: function(ns) {
+      return ns.replace(/\//g, '.').replace(/[^\w\.\$]+/g, '_').replace(/\b(\d+)/g, '_$1').replace(/\.+/g, '.').replace(/^\.*(.+?)\.*$/, '$1');
     },
     useNamespace: function(ns, create, set) {
       var parent, pp, space, _i, _len, _ref;
@@ -185,8 +167,9 @@
 
   FullPackages = (function() {
 
-    function FullPackages(packages) {
+    function FullPackages(packages, base) {
       this.packages = packages;
+      this.base = base != null ? base : '*';
       this.added = {};
     }
 
@@ -214,7 +197,7 @@
     };
 
     FullPackages.prototype.addModulePackage = function(list, pkg, silent) {
-      var def, m;
+      var def, fallback, i, m, ns;
       if (def = config.shim[pkg]) {
         if (this.checkAdded(pkg)) {
           return;
@@ -224,19 +207,27 @@
             deps: def
           };
         }
+        if ('string' === typeof def.exports) {
+          ns = config.shim[pkg].exports;
+          config.shim[pkg].exports = function() {
+            return utils.useNamespace(ns);
+          };
+        }
         def = $.extend({
           pkg: pkg,
           silent: silent,
-          deps: []
+          deps: [],
+          fallbacks: []
         }, def);
+        i = -1;
         def.deps = (function() {
           var _i, _len, _ref, _results;
           _ref = def.deps;
           _results = [];
           for (_i = 0, _len = _ref.length; _i < _len; _i++) {
             m = _ref[_i];
-            m = utils.doAlts(m);
-            m = utils.fixBase(m, pkg);
+            m = utils.regulateName(m, pkg);
+            fallback = def.fallbacks[++i] != null ? (def.fallbacks[i] = utils.regulateName(def.fallbacks[i], pkg), [def.fallbacks[i], utils.toUrl(def.fallbacks[i])]) : void 0;
             if ('package' === utils.getPackageType(m)) {
               this.addDependencies(list, m);
             }
@@ -246,7 +237,8 @@
             } else {
               _results.push({
                 name: m,
-                uri: utils.toUri(m)
+                uri: utils.toUrl(m),
+                fallback: fallback
               });
             }
           }
@@ -267,7 +259,7 @@
         deps: [
           {
             name: pkg,
-            uri: utils.toUri(pkg)
+            uri: utils.toUrl(utils.regulateName(pkg, this.base))
           }
         ]
       });
@@ -296,7 +288,7 @@
         if (silent = '&' === pkg.charAt(0)) {
           pkg = pkg.substr(1);
         }
-        pkg = utils.doAlts(pkg);
+        pkg = utils.regulateName(pkg, this.base);
         type = utils.getPackageType(pkg);
         if ('path' === type) {
           this.addSinglePackage(list, pkg);
@@ -343,12 +335,6 @@
       utils.log('Loaded form cache', name);
       return data;
     },
-    remove: function(name) {
-      if (!localStorage) {
-        return;
-      }
-      return localStorage.removeItem(config.prefix + utils.toUri(utils.doAlts(name)));
-    },
     clear: function() {
       var key, _results;
       if (!localStorage) {
@@ -377,7 +363,7 @@
             _results = [];
             for (_i = 0, _len = deps.length; _i < _len; _i++) {
               name = deps[_i];
-              name = utils.fixBase(utils.doAlts(name), set.pkg);
+              name = utils.fixBase(utils.regulateName(name), set.pkg);
               _results.push(this.get((name === set.pkg ? '#' : '') + name));
             }
             return _results;
@@ -393,39 +379,26 @@
       }
     },
     set: function(set) {
-      var get, name, type, _name, _ref, _ref1, _ref2, _ref3;
-      _name = (_ref = set.name) != null ? _ref : set.pkg;
+      var get, name, type, _name, _ref, _ref1, _ref2, _ref3, _ref4;
+      _name = (_ref = (_ref1 = set.name) != null ? _ref1 : set.pkg) != null ? _ref : '';
       name = (set.name ? '#' : '') + _name;
       type = utils.getPackageType(_name);
       if (get = this.get(name)) {
         return;
       }
-      this.exports[name] = (_ref1 = this.unwrap(set)) != null ? _ref1 : {};
+      if ('package' === type && typeof set.exports === 'string') {
+        _name = set.exports;
+      }
+      this.exports[name] = (_ref2 = this.unwrap(set)) != null ? _ref2 : {};
       if ('package' === type) {
-        this.exports[name] = (_ref2 = utils.useNamespace(_name, false, set.exports)) != null ? _ref2 : {};
+        this.exports[name] = (_ref3 = utils.useNamespace(_name, false, set.exports)) != null ? _ref3 : {};
       } else if ('plugin' !== type && set.pkg) {
-        this.exports[_name] = (_ref3 = this.get('#' + _name)) != null ? _ref3 : {};
+        this.exports[_name] = (_ref4 = this.get('#' + _name)) != null ? _ref4 : {};
       }
       return utils.log('Exported', name);
     },
-    get: function(name, like) {
-      var key, val, _ref;
-      if (like == null) {
-        like = false;
-      }
-      if (this.exports[name]) {
-        return this.exports[name];
-      } else if (like) {
-        _ref = this.exports;
-        for (key in _ref) {
-          val = _ref[key];
-          if (key.indexOf(name === 0)) {
-            break;
-          }
-          val = null;
-        }
-        return val;
-      }
+    get: function(name) {
+      return this.exports[name];
     },
     remove: function(name) {
       return this.exports[name] = void 0;
@@ -449,8 +422,9 @@
     setStatus: function(name, status) {
       return this.status[name] = status;
     },
-    getData: function(name, uri, opt) {
-      var data, dfd, ext;
+    getData: function(name, uri, opt, fail) {
+      var data, dfd, ext,
+        _this = this;
       if (opt == null) {
         opt = {};
       }
@@ -488,8 +462,12 @@
             });
           }
         }).fail(function(xhr, status) {
-          dfd.reject(name, status);
-          return utils.error('Ajax', status, uri);
+          if ($.isArray(fail)) {
+            return _this.getData.apply(_this, fail).then(dfd.resolve, dfd.reject);
+          } else {
+            dfd.reject(name, status);
+            return utils.error('Ajax', status, uri);
+          }
         });
       }
       return dfd.promise();
@@ -514,29 +492,29 @@
       return dfd.promise();
     },
     loadPackage: function(pkg) {
-      var func, name, queues, uri;
+      var fallback, func, name, queues, uri;
       queues = (function() {
         var _i, _len, _ref, _ref1, _results;
         _ref = pkg.deps;
         _results = [];
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-          _ref1 = _ref[_i], name = _ref1.name, uri = _ref1.uri, func = _ref1.func;
+          _ref1 = _ref[_i], name = _ref1.name, uri = _ref1.uri, func = _ref1.func, fallback = _ref1.fallback;
           if (this.getStatus(name)) {
             _results.push(this.getStatus(name, true));
           } else if (func) {
             _results.push(this.setStatus(name, this.invokeFunction(name, func)));
           } else {
-            _results.push(this.setStatus(name, this.getData(name, uri)));
+            _results.push(this.setStatus(name, this.getData(name, uri, {}, fallback)));
           }
         }
         return _results;
       }).call(this);
       return $.when.apply($, queues);
     },
-    load: function(modules) {
+    load: function(modules, base) {
       var dfd, packages, pkg, promises,
         _this = this;
-      packages = utils.getFullPackages(modules);
+      packages = utils.getFullPackages(modules, base);
       dfd = $.Deferred();
       promises = (function() {
         var _i, _len, _results;
@@ -584,7 +562,7 @@
           _results = [];
           for (_j = 0, _len1 = _ref2.length; _j < _len1; _j++) {
             name = _ref2[_j];
-            _results.push(exports.get(utils.fixBase(utils.doAlts(name), pkg.pkg)));
+            _results.push(exports.get(utils.regulateName(name, pkg.pkg)));
           }
           return _results;
         })();
@@ -615,22 +593,28 @@
       return this;
     };
 
-    Require.prototype.get = function(name) {
-      var _i, _len, _ref, _results;
-      if (name == null) {
-        name = false;
-      }
-      if (name !== false) {
+    Require.prototype.require = function(name) {
+      var _i, _j, _len, _len1, _name, _ref, _ref1, _results;
+      if (name != null) {
         if ($.isNumeric(name)) {
           name = this.modules[name];
+        } else if (!this.modules[name]) {
+          _ref = this.modules;
+          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+            _name = _ref[_i];
+            if (_name.indexOf(name >= 0)) {
+              break;
+            }
+          }
+          name = _name;
         }
-        return exports.get(utils.doAlts(name), true);
+        return exports.get(utils.regulateName(name));
       } else {
-        _ref = this.modules;
+        _ref1 = this.modules;
         _results = [];
-        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-          name = _ref[_i];
-          _results.push(exports.get(utils.doAlts(name)));
+        for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+          name = _ref1[_j];
+          _results.push(exports.get(utils.regulateName(name)));
         }
         return _results;
       }
@@ -639,7 +623,7 @@
     Require.prototype.done = function(callback) {
       var _this = this;
       return this._fn('done', function() {
-        return callback.apply(_this, _this.get());
+        return callback.apply(_this, _this.require());
       });
     };
 
@@ -658,7 +642,7 @@
     Require.prototype.then = function(done, fail, progress) {
       var _this = this;
       return this._fn('then', (function() {
-        return done.apply(_this, _this.get());
+        return done.apply(_this, _this.require());
       }), fail, progress);
     };
 
@@ -695,7 +679,7 @@
 
   undef = function(name) {
     var _name;
-    _name = utils.doAlts(name);
+    _name = utils.regulateName(name);
     loader.setStatus(_name, null);
     exports.remove(_name);
     return config.shim[name] = void 0;
@@ -711,7 +695,7 @@
       if (main.length !== 1) {
         return;
       }
-      main = utils.toUri(main.data('main'));
+      main = utils.toUrl(main.data('main'));
       return loader.getData('__main', main, {
         async: false
       }).done(function(_arg) {
@@ -725,11 +709,8 @@
         if (settings.shim) {
           settings.shim = $.extend(config.shim, settings.shim);
         }
-        if (settings.alts) {
-          settings.alts = $.extend(config.alts, settings.alts);
-        }
-        if (settings.maps) {
-          settings.maps = $.extend(config.maps, settings.maps);
+        if (settings.map) {
+          settings.map = $.extend(config.map, settings.map);
         }
         return $.extend(config, settings);
       } else {
@@ -739,21 +720,18 @@
     undef: undef,
     define: define,
     defineByQueue: function() {
-      var args, id, queue;
+      var args, id, q;
       id = arguments[0], args = 2 <= arguments.length ? __slice.call(arguments, 1) : [];
-      queue = defQueue[id];
-      if (!queue) {
-        return false;
+      q = defQueue[id];
+      if (!q) {
+        return;
       }
       if ('string' !== typeof args[0]) {
-        args.unshift(queue.name);
+        args.unshift(q.name);
       }
       define.apply(null, __slice.call(args).concat([true]));
-      if (queue) {
-        loader.load([args[0]]).then(queue.dfd.resolve, queue.dfd.reject);
-      }
-      defQueue[id] = void 0;
-      return true;
+      loader.load([args[0]], q.name).then(q.dfd.resolve, q.dfd.reject);
+      return defQueue[id] = void 0;
     },
     injectors: function(settings) {
       if ($.isPlainObject(settings)) {
@@ -762,22 +740,15 @@
         return config.injectors;
       }
     },
-    alts: function(x) {
-      if (x) {
-        return $.extend(config.alts, arguments);
+    map: function(x) {
+      if (x != null) {
+        return $.extend(config.map, x);
       } else {
-        return config.alts;
+        return config.map;
       }
     },
-    maps: function(x) {
-      if (x) {
-        return $.extend(config.maps, arguments);
-      } else {
-        return config.maps;
-      }
-    },
-    toUri: function(pkg) {
-      return utils.toUri(utils.doAlts(pkg != null ? pkg : ''));
+    toUrl: function(pkg, base) {
+      return utils.toUrl(utils.regulateName(pkg, base));
     }
   });
 

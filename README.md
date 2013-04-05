@@ -51,7 +51,7 @@ require は読み込みは並列で行い、**実行のタイミングだけを�
 ```js
 require.config({
   shim: {
-    'abc': ['a', 'b', 'c']
+    'abc': ['a', 'b', 'c'] // a.js -> b.js -> c.js の順に実行される
   }
 })
 
@@ -154,6 +154,7 @@ require.config({
 
 ```js
 require(['foo'], function (foo) {
+  // ./lib/modules/bar.js
   // ./lib/modules/foo.js
   // の読み込み完了
 

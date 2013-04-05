@@ -15,12 +15,11 @@ MILLISEC_DAY = 86400000 # 1000 msec * 60 sec * 60 min * 24 hr = 1 d
 
 config =
   prefix:     'require-'
-  baseUrl:    './'
+  baseUrl:    ''
   paths:      {}
-  shim:       {}
   injectors:  {}
-  alts:       []
-  maps:       []
+  shim:       {}
+  map:        {}
   cache:      true
   debug:      false
   override:   false
@@ -31,55 +30,26 @@ config =
 # Utils
 #-----------------------------------------------
 utils =
-  replace: (text, pattern, to) ->
-    if typeof pattern == 'string'
-      # simple replace all
-      text.split(pattern).join to
-    else
-      # use regexp
-      text.replace pattern, to
-
-  doAlts: (name) ->
-    type = @getPackageType name
-
-    for r in config.alts when !r.type || r.type == type
-      name = @replace name, r.pattern, r.to
-
-    name
-
-  doMaps: (uri) ->
-    if path = /^(\~([a-z_\$]\w*)\/|[a-z_\$]\w*)/i.exec uri
-      if path[2] && config.paths[path[2]]
-        path = path[2]
-      else
-        path = path[1]
-
-      for r in config.maps when !r.path || r.path == path
-        uri = @replace uri, r.pattern, r.to
-
-    uri
-
   inject: (uri, data) -> config.injectors[@getFileExtension uri]? data, uri
 
   getFileExtension: (file) -> /(\w+)([\?#].+)?$/.exec(file.toLowerCase())?[1]
 
-  sanitizeNamespace: (ns) ->
-    ns
-    .replace(/\//g, '.')            # regard slashes as dot
-    .replace(/[^\w\.\$]+/g, '_')    # invalid charators
-    .replace(/\b(\d+)/g, '_$1')     # unexpected numeric token
-    .replace(/\.+/g, '.')           # densed dots
-    .replace(/^\.*(.+?)\.*$/, '$1') # trim head & tail dots
-
   getPackageType: (pkg) ->
     if pkg.indexOf('!') > 0
       'plugin'
-    else if pkg.match(/^(|\.\.|\~|https?:)\//) || config.injectors[/\w+$/.exec(pkg)?[0]]
+    else if pkg.match(/^(|\.\.|\~|https?:)\//) \
+            || config.injectors[/\w+$/.exec(pkg)?[0]]
       'path'
     else
       'package'
 
+  getFullPackages: (packages, base) -> new FullPackages(packages, base).get()
+
+  doMap: (name, base = '*') -> (config.map[base] ? config.map['*'])?[name] ? name
+
   fixBase: (name, base) ->
+    return name unless base
+
     if '.' == name
       base
     else if './' == name[0...2]
@@ -89,6 +59,8 @@ utils =
         base + '/' + name[2..]
     else
       name
+
+  regulateName: (name, base) -> @fixBase @doMap(name, base), base
 
   trimDots: (uri) ->
     parts = []
@@ -101,14 +73,14 @@ utils =
 
     parts.join '/'
 
-  toUri: (pkg) ->
+  toUrl: (pkg) ->
     pkg = switch @getPackageType pkg
       when 'path'
-        @doMaps(pkg).replace /^\~\/((\w*)\/)?/, (_0, _1, _2) =>
+        pkg.replace /^\~\/((\w*)\/)?/, (_0, _1, _2) =>
           p = config.paths[_2]
           config.baseUrl + '/' + (if p then p + '/' else _1 ? '')
       when 'package'
-        pkg = @doMaps(pkg).replace /^\w+/, (_0) ->
+        pkg = pkg.replace /^\w+/, (_0) ->
           config.paths[_0] ? _0
 
         config.baseUrl + '/' + pkg + '.js'
@@ -117,7 +89,13 @@ utils =
 
     @trimDots pkg
 
-  getFullPackages: (packages) -> new FullPackages(packages).get()
+  sanitizeNamespace: (ns) ->
+    ns
+    .replace(/\//g, '.')            # treat slash as dot
+    .replace(/[^\w\.\$]+/g, '_')    # invalid charators
+    .replace(/\b(\d+)/g, '_$1')     # unexpected numeric token
+    .replace(/\.+/g, '.')           # densed dots
+    .replace(/^\.*(.+?)\.*$/, '$1') # trim head & tail dots
 
   useNamespace: (ns, create, set) ->
     parent = window
@@ -144,7 +122,7 @@ utils =
 # Resolve Package
 #-----------------------------------------------
 class FullPackages
-  constructor: (@packages) -> @added = {}
+  constructor: (@packages, @base = '*') -> @added = {}
 
   checkAdded: (pkg) ->
     @added[pkg] >>>= 0
@@ -171,12 +149,23 @@ class FullPackages
       return if @checkAdded pkg
 
       def = config.shim[pkg] = deps: def if $.isArray def
-      def = $.extend { pkg, silent, deps: [] }, def
+
+      if 'string' == typeof def.exports
+        # if `exports` is string, export as namespace object
+        ns = config.shim[pkg].exports
+        config.shim[pkg].exports = -> utils.useNamespace ns
+
+      def = $.extend { pkg, silent, deps: [], fallbacks: [] }, def
+      i = -1
 
       def.deps =
         for m in def.deps
-          m = utils.doAlts m
-          m = utils.fixBase m, pkg
+          m = utils.regulateName m, pkg
+
+          fallback =
+            if def.fallbacks[++i]?
+              def.fallbacks[i] = utils.regulateName def.fallbacks[i], pkg
+              [def.fallbacks[i], utils.toUrl(def.fallbacks[i])]
 
           @addDependencies list, m if 'package' == utils.getPackageType m
 
@@ -184,7 +173,7 @@ class FullPackages
             list.push @expand([m])...
             continue
           else
-            { name: m, uri: utils.toUri m }
+            { name: m, uri: utils.toUrl(m), fallback }
 
       list.push def
     else
@@ -192,11 +181,11 @@ class FullPackages
 
   addSinglePackage: (list, pkg) ->
     return if @checkAdded pkg
-    list.push { pkg, deps: [name: pkg, uri: utils.toUri pkg] }
+    list.push { pkg, deps: [ name: pkg, uri: utils.toUrl(utils.regulateName(pkg, @base)) ] }
 
   addPluginPackage: (list, pkg) ->
     return if @checkAdded pkg
-    list.push { pkg, deps: [name: pkg, func: pkg] }
+    list.push { pkg, deps: [ name: pkg, func: pkg ] }
 
   expand: (packages) ->
     list = []
@@ -205,7 +194,7 @@ class FullPackages
       if silent = ('&' == pkg.charAt 0)
         pkg = pkg.substr 1
 
-      pkg = utils.doAlts pkg
+      pkg = utils.regulateName pkg, @base
       type = utils.getPackageType pkg
 
       if 'path' == type
@@ -233,7 +222,9 @@ cache =
     utils.log 'Cached ', name
 
   get: (name) ->
-    return unless config.cache && localStorage && data = localStorage.getItem config.prefix + name
+    return unless config.cache \
+      && localStorage \
+      && data = localStorage.getItem config.prefix + name
 
     timestamp = +data[0...13]
     data = data[13..]
@@ -243,11 +234,6 @@ cache =
     utils.log 'Loaded form cache', name
 
     data
-
-  remove: (name) ->
-    return unless localStorage
-
-    localStorage.removeItem config.prefix + utils.toUri utils.doAlts name
 
   clear: ->
     return unless localStorage
@@ -267,7 +253,7 @@ exports =
 
       if $.isFunction set.exports
         args = for name in deps
-          name = utils.fixBase utils.doAlts(name), set.pkg
+          name = utils.fixBase utils.regulateName(name), set.pkg
           @get (if name == set.pkg then '#' else '') + name
 
         try set.exports = set.exports.apply def, args
@@ -277,11 +263,14 @@ exports =
       set.data
 
   set: (set) ->
-    _name = set.name ? set.pkg
+    _name = set.name ? set.pkg ? ''
     name = (if set.name then '#' else '') + _name
     type = utils.getPackageType _name
 
     return if get = @get name
+
+    if 'package' == type && typeof set.exports == 'string'
+      _name = set.exports
 
     @exports[name] = @unwrap(set) ? {}
 
@@ -293,15 +282,7 @@ exports =
 
     utils.log 'Exported', name
 
-  get: (name, like = false) ->
-    if @exports[name]
-      @exports[name]
-    else if like
-      for key, val of @exports
-        break if key.indexOf name == 0
-        val = null
-
-      val
+  get: (name) -> @exports[name]
 
   remove: (name) -> @exports[name] = undefined
 
@@ -321,7 +302,7 @@ loader =
 
   setStatus: (name, status) -> @status[name] = status
 
-  getData: (name, uri, opt = {}) ->
+  getData: (name, uri, opt = {}, fail) ->
     dfd = $.Deferred()
 
     if data = cache.get uri
@@ -346,9 +327,12 @@ loader =
         else
           dfd.resolve { name, uri, data, inject: true }
 
-      .fail (xhr, status) ->
-        dfd.reject name, status
-        utils.error 'Ajax', status, uri
+      .fail (xhr, status) =>
+        if $.isArray fail
+          @getData(fail...).then dfd.resolve, dfd.reject
+        else
+          dfd.reject name, status
+          utils.error 'Ajax', status, uri
 
     dfd.promise()
 
@@ -371,18 +355,18 @@ loader =
     dfd.promise()
 
   loadPackage: (pkg) ->
-    queues = for { name, uri, func } in pkg.deps
+    queues = for { name, uri, func, fallback } in pkg.deps
       if @getStatus name
         @getStatus name, true
       else if func
         @setStatus name, @invokeFunction name, func
       else
-        @setStatus name, @getData name, uri
+        @setStatus name, @getData name, uri, {}, fallback
 
     $.when queues...
 
-  load: (modules) ->
-    packages = utils.getFullPackages modules
+  load: (modules, base) ->
+    packages = utils.getFullPackages modules, base
     dfd = $.Deferred()
 
     promises = for pkg in packages
@@ -415,7 +399,7 @@ loader =
       exports.set pkg
 
       args = for name in config.shim[pkg.pkg]?.deps ? []
-        exports.get utils.fixBase utils.doAlts(name), pkg.pkg
+        exports.get utils.regulateName name, pkg.pkg
 
       pkg.init? args...
       pkg.runs? args... unless pkg.silent
@@ -431,21 +415,26 @@ class Require
     @loader[method] fn...
     @
 
-  get: (name = false) ->
-    if name != false
-      name = @modules[name] if $.isNumeric name
-      exports.get utils.doAlts(name), true
-    else
-      exports.get utils.doAlts name for name in @modules
+  require: (name) ->
+    if name?
+      if $.isNumeric name
+        name = @modules[name]
+      else if !@modules[name]
+        break for _name in @modules when _name.indexOf name >= 0
+        name = _name
 
-  done: (callback) -> @_fn 'done', => callback.apply @, @get()
+      exports.get utils.regulateName name
+    else
+      exports.get utils.regulateName name for name in @modules
+
+  done: (callback) -> @_fn 'done', => callback.apply @, @require()
   fail: (callback) -> @_fn 'fail', callback
   progress: (callback) -> @_fn 'progress', callback
 
   always: (callback) -> @_fn 'always', callback
 
   then: (done, fail, progress) ->
-    @_fn 'then', (=> done.apply @, @get()), fail, progress
+    @_fn 'then', (=> done.apply @, @require()), fail, progress
 
 # Plugin Export
 #-----------------------------------------------
@@ -473,7 +462,7 @@ define = (x, y, z, override = false) ->
   config.shim[x] = deps: y, exports: z
 
 undef = (name) ->
-  _name = utils.doAlts name
+  _name = utils.regulateName name
   loader.setStatus _name, null
   exports.remove _name
   config.shim[name] = undefined
@@ -488,7 +477,7 @@ $.extend require, utils,
 
     return unless main.length == 1
 
-    main = utils.toUri main.data 'main'
+    main = utils.toUrl main.data 'main'
     loader.getData('__main', main, async: false).done ({data, uri}) ->
       utils.inject uri, data
 
@@ -496,8 +485,7 @@ $.extend require, utils,
     if $.isPlainObject settings
       # deep copy
       settings.shim = $.extend config.shim, settings.shim if settings.shim
-      settings.alts = $.extend config.alts, settings.alts if settings.alts
-      settings.maps = $.extend config.maps, settings.maps if settings.maps
+      settings.map = $.extend config.map, settings.map if settings.map
 
       # sallow copy
       $.extend config, settings
@@ -509,19 +497,17 @@ $.extend require, utils,
   define: define
 
   defineByQueue: (id, args...) ->
-    queue = defQueue[id]
+    q = defQueue[id]
 
-    return false unless queue
+    return unless q
 
-    args.unshift queue.name unless 'string' == typeof args[0]
+    args.unshift q.name unless 'string' == typeof args[0]
 
     define args..., true
 
-    loader.load([args[0]]).then queue.dfd.resolve, queue.dfd.reject if queue
+    loader.load([args[0]], q.name).then q.dfd.resolve, q.dfd.reject
 
     defQueue[id] = undefined
-
-    true
 
   injectors: (settings) ->
     if $.isPlainObject settings
@@ -529,19 +515,13 @@ $.extend require, utils,
     else
       config.injectors
 
-  alts: (x) ->
-    if x
-      $.extend config.alts, arguments
+  map: (x) ->
+    if x?
+      $.extend config.map, x
     else
-      config.alts
+      config.map
 
-  maps: (x) ->
-    if x
-      $.extend config.maps, arguments
-    else
-      config.maps
-
-  toUri: (pkg) -> utils.toUri utils.doAlts pkg ? ''
+  toUrl: (pkg, base) -> utils.toUrl utils.regulateName(pkg, base)
 
 # Default
 #-----------------------------------------------
