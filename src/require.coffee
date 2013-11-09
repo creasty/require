@@ -256,6 +256,8 @@ exports =
           name = utils.fixBase utils.regulateName(name), set.pkg
           @get (if name == set.pkg then '#' else '') + name
 
+        def.global = window
+
         try set.exports = set.exports.apply def, args
       else
         set.exports
@@ -401,6 +403,8 @@ loader =
       args = for name in config.shim[pkg.pkg]?.deps ? []
         exports.get utils.regulateName name, pkg.pkg
 
+      pkg.global = window
+
       pkg.init? args...
       pkg.runs? args... unless pkg.silent
 
@@ -419,22 +423,26 @@ class Require
     if name?
       if $.isNumeric name
         name = @modules[name]
-      else if !@modules[name]
-        break for _name in @modules when _name.indexOf name >= 0
+      else
+        break for _name in @modules when _name.indexOf(name) >= 0
         name = _name
 
       exports.get utils.regulateName name
     else
       exports.get utils.regulateName name for name in @modules
 
-  done: (callback) -> @_fn 'done', => callback.apply @, @require()
+  _wrapCallback: (fn) -> => fn.apply @, @require()
+
+  global: window
+
+  done: (callback) -> @_fn 'done', @_wrapCallback(callback)
   fail: (callback) -> @_fn 'fail', callback
   progress: (callback) -> @_fn 'progress', callback
 
   always: (callback) -> @_fn 'always', callback
 
   then: (done, fail, progress) ->
-    @_fn 'then', (=> done.apply @, @require()), fail, progress
+    @_fn 'then', @_wrapCallback(done), fail, progress
 
 # Plugin Export
 #-----------------------------------------------

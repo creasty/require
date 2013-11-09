@@ -17,7 +17,7 @@ require.config
 
   shim:
     'com':
-      deps: ['../com.js']
+      deps: ['../com.js'] # fail on purpose
       fallbacks: ['~/com.js']
 
     'abc': ['.', 'def', 'ghi']
@@ -53,7 +53,7 @@ describe 'require.toUrl(pkg)', ->
     expect(x1).toEqual y1
     expect(x2).toEqual y2
 
-  it '`pkg` が、"/", "../", "http[s]://" で始まるか、拡張子を含むとき、一般的なパスとみなしてそのままの値を返す', ->
+  it '`pkg` が "/", "../", "http[s]://" で始まるか、拡張子を含むとき、一般的なパスとみなしてそのままの値を返す', ->
     x1 = '/dir/file.js'
     x2 = '../dir/file.js'
     x3 = 'http://www.example.com/dir/file.js'
@@ -62,7 +62,7 @@ describe 'require.toUrl(pkg)', ->
     expect(require.toUrl x2).toEqual x2
     expect(require.toUrl x3).toEqual x3
 
-  it '`pkg` が、パッケージとみなして base からの URL を返す', ->
+  it '`pkg` がそれ以外の場合パッケージとみなして base からの URL を返す', ->
     x = require.toUrl 'foo/bar/baz'
     y = 'spec/library/modules/foo/bar/baz.js'
 

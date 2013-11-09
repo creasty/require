@@ -1,5 +1,5 @@
 /*!
- * require - v2.0.1 (2013-04-06)
+ * require - v2.0.1 (2013-04-07)
  *
  * @author creasty
  * @url http://github.com/creasty/require
@@ -368,6 +368,7 @@
             }
             return _results;
           }).call(this);
+          def.global = window;
           try {
             return set.exports = set.exports.apply(def, args);
           } catch (_error) {}
@@ -566,6 +567,7 @@
           }
           return _results;
         })();
+        pkg.global = window;
         if (typeof pkg.init === "function") {
           pkg.init.apply(pkg, args);
         }
@@ -598,11 +600,11 @@
       if (name != null) {
         if ($.isNumeric(name)) {
           name = this.modules[name];
-        } else if (!this.modules[name]) {
+        } else {
           _ref = this.modules;
           for (_i = 0, _len = _ref.length; _i < _len; _i++) {
             _name = _ref[_i];
-            if (_name.indexOf(name >= 0)) {
+            if (_name.indexOf(name) >= 0) {
               break;
             }
           }
@@ -620,11 +622,17 @@
       }
     };
 
-    Require.prototype.done = function(callback) {
+    Require.prototype._wrapCallback = function(fn) {
       var _this = this;
-      return this._fn('done', function() {
-        return callback.apply(_this, _this.require());
-      });
+      return function() {
+        return fn.apply(_this, _this.require());
+      };
+    };
+
+    Require.prototype.global = window;
+
+    Require.prototype.done = function(callback) {
+      return this._fn('done', this._wrapCallback(callback));
     };
 
     Require.prototype.fail = function(callback) {
@@ -640,10 +648,7 @@
     };
 
     Require.prototype.then = function(done, fail, progress) {
-      var _this = this;
-      return this._fn('then', (function() {
-        return done.apply(_this, _this.require());
-      }), fail, progress);
+      return this._fn('then', this._wrapCallback(done), fail, progress);
     };
 
     return Require;

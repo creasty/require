@@ -54,7 +54,7 @@
       expect(x1).toEqual(y1);
       return expect(x2).toEqual(y2);
     });
-    it('`pkg` が、"/", "../", "http[s]://" で始まるか、拡張子を含むとき、一般的なパスとみなしてそのままの値を返す', function() {
+    it('`pkg` が "/", "../", "http[s]://" で始まるか、拡張子を含むとき、一般的なパスとみなしてそのままの値を返す', function() {
       var x1, x2, x3;
       x1 = '/dir/file.js';
       x2 = '../dir/file.js';
@@ -63,7 +63,7 @@
       expect(require.toUrl(x2)).toEqual(x2);
       return expect(require.toUrl(x3)).toEqual(x3);
     });
-    it('`pkg` が、パッケージとみなして base からの URL を返す', function() {
+    it('`pkg` がそれ以外の場合パッケージとみなして base からの URL を返す', function() {
       var x, y;
       x = require.toUrl('foo/bar/baz');
       y = 'spec/library/modules/foo/bar/baz.js';
